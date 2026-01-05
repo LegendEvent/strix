@@ -105,12 +105,9 @@ def _save_oauth_info_to_disk(path: Path, info: CopilotOAuthInfo) -> None:
     tmp.write_text(json.dumps(payload), encoding="utf-8")
     import contextlib
 
+    # Best-effort set secure permissions on the temporary file; ignore failures.
     with contextlib.suppress(Exception):
-        # Prefer Path.chmod but fall back if not available in older Pythons
-        try:
-            tmp.chmod(0o600)
-        except Exception:
-            os.chmod(tmp, 0o600)
+        tmp.chmod(0o600)
     tmp.replace(path)
 
 

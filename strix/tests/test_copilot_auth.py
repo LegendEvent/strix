@@ -3,13 +3,14 @@ import time
 import pytest
 import respx
 
+from pathlib import Path
+
 from strix.llm import copilot_auth
 
 
 @pytest.mark.asyncio
-async def test_env_access_token_returns_immediately(tmp_path, monkeypatch):
+async def test_env_access_token_returns_immediately(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.setenv("STRIX_COPILOT_ACCESS", "env-access-token-123")
-    # ensure no token file exists
     tok_path = tmp_path / "copilot_auth.json"
     if tok_path.exists():
         tok_path.unlink()
@@ -22,13 +23,12 @@ async def test_env_access_token_returns_immediately(tmp_path, monkeypatch):
 
 
 @pytest.mark.asyncio
-async def test_env_refresh_token_triggers_exchange(tmp_path, monkeypatch):
+async def test_env_refresh_token_triggers_exchange(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("STRIX_COPILOT_ACCESS", raising=False)
     monkeypatch.setenv("STRIX_COPILOT_TOKEN", "env-refresh-xyz")
 
     tok_path = tmp_path / "copilot_auth.json"
 
-    # Mock the COPILOT_API_KEY_URL exchange response
     domain = "github.com"
     urls = copilot_auth._get_urls(domain)
 
@@ -42,12 +42,11 @@ async def test_env_refresh_token_triggers_exchange(tmp_path, monkeypatch):
         )
 
     assert token == "access-456"
-    # token file should be created
     assert tok_path.exists()
 
 
 @pytest.mark.asyncio
-async def test_non_interactive_without_token_raises(tmp_path, monkeypatch):
+async def test_non_interactive_without_token_raises(tmp_path: Path, monkeypatch) -> None:
     monkeypatch.delenv("STRIX_COPILOT_ACCESS", raising=False)
     monkeypatch.delenv("STRIX_COPILOT_TOKEN", raising=False)
 
