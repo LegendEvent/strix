@@ -176,7 +176,7 @@ def check_docker_installed() -> None:
         sys.exit(1)
 
 
-async def warm_up_llm() -> None:
+async def warm_up_llm(non_interactive: bool = False) -> None:
     console = Console()
 
     try:
@@ -207,7 +207,18 @@ async def warm_up_llm() -> None:
             from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
 
             copilot_model = model_name.split("/", 1)[1]
-            copilot_token, copilot_base_url = await get_copilot_access_token()
+            # Respect non-interactive mode by disabling interactive device flow
+            try:
+                copilot_token, copilot_base_url = await get_copilot_access_token(
+                    interactive=not non_interactive
+                )
+            except RuntimeError as e:
+                if non_interactive:
+                    # Fail fast in CI/non-interactive mode with a clear message
+                    raise RuntimeError(
+                        "GitHub Copilot model requires interactive login. Rerun without --non-interactive or provide a pre-provisioned token via STRIX_COPILOT_TOKEN."
+                    ) from e
+                raise
 
             completion_kwargs["model"] = copilot_model
             completion_kwargs["base_url"] = copilot_base_url
@@ -521,7 +532,7 @@ def main() -> None:
     pull_docker_image()
 
     validate_environment()
-    asyncio.run(warm_up_llm())
+    asyncio.run(warm_up_llm(non_interactive=args.non_interactive))
 
     if not args.run_name:
         args.run_name = generate_run_name(args.targets_info)
