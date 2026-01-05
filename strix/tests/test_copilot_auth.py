@@ -1,9 +1,8 @@
 import time
+from pathlib import Path
 
 import pytest
 import respx
-
-from pathlib import Path
 
 from strix.llm import copilot_auth
 
