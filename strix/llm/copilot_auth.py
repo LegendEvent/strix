@@ -104,10 +104,14 @@ def _save_oauth_info_to_disk(path: Path, info: CopilotOAuthInfo) -> None:
     # Best-effort permissions (0600)
     tmp = path.with_suffix(path.suffix + ".tmp")
     tmp.write_text(json.dumps(payload), encoding="utf-8")
-    try:
-        os.chmod(tmp, 0o600)
-    except Exception:  # noqa: BLE001
-        pass
+    import contextlib
+
+    with contextlib.suppress(Exception):
+        # Prefer Path.chmod but fall back if not available in older Pythons
+        try:
+            tmp.chmod(0o600)
+        except Exception:
+            os.chmod(tmp, 0o600)
     tmp.replace(path)
 
 
@@ -220,7 +224,8 @@ async def login_via_device_flow_if_needed(
     ]
     for line in msg_lines:
         logger.warning("%s", line)
-        print(line, file=sys.stderr)
+        # Avoid printing in library code; log only. Clients can surface messages as needed.
+        # print(line, file=sys.stderr)
 
     refresh_token = await _poll_device_flow(
         domain=domain,

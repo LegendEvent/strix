@@ -1,11 +1,7 @@
-import os
 import time
-import asyncio
-import pytest
-import httpx
-import respx
 
-from pathlib import Path
+import pytest
+import respx
 
 from strix.llm import copilot_auth
 

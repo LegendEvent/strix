@@ -15,9 +15,8 @@ from jinja2 import (
 from litellm import ModelResponse, completion_cost
 from litellm.utils import supports_prompt_caching, supports_vision
 
-from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
-
 from strix.llm.config import LLMConfig
+from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
 from strix.llm.memory_compressor import MemoryCompressor
 from strix.llm.request_queue import get_global_queue
 from strix.llm.utils import _truncate_to_first_function, parse_tool_invocations
