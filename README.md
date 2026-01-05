@@ -214,6 +214,23 @@ export LLM_API_BASE="your-api-base-url"  # if using a local model, e.g. Ollama, 
 export PERPLEXITY_API_KEY="your-api-key"  # for search capabilities
 ```
 
+### GitHub Copilot models
+
+We support Copilot-backed models via STRIX_LLM by using model names of the form:
+
+export STRIX_LLM="github-copilot/<model>"
+
+This triggers an interactive OAuth device-flow the first time you run Strix and stores a refresh token at $XDG_CONFIG_HOME/strix/copilot_auth.json (defaults to ~/.config/strix/copilot_auth.json). After login, Strix will automatically refresh tokens and call the Copilot API on your behalf.
+
+Notes:
+- First-run is interactive (open browser & enter code). For non-interactive CI you must use a different provider or pre-provision credentials.
+- Tokens are stored locally with best-effort 0600 permissions — review the token store if this is a concern.
+
+Example (copyable):
+export STRIX_LLM="github-copilot/gpt-copilot-v1"
+# Run Strix once and complete the device flow when prompted
+
+
 [OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) are the recommended models for best results with Strix. See the LLM providers documentation for supported providers including Vertex AI, Bedrock, Azure, and local models.
 
 ## 🤝 Contributing
