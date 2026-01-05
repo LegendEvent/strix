@@ -201,10 +201,26 @@ async def warm_up_llm() -> None:
             "messages": test_messages,
             "timeout": llm_timeout,
         }
-        if api_key:
-            completion_kwargs["api_key"] = api_key
-        if api_base:
-            completion_kwargs["api_base"] = api_base
+
+        # Copilot doesn't use LLM_API_KEY; it uses OAuth device flow.
+        if model_name.lower().startswith("github-copilot/"):
+            from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
+
+            copilot_model = model_name.split("/", 1)[1]
+            copilot_token, copilot_base_url = await get_copilot_access_token()
+
+            completion_kwargs["model"] = copilot_model
+            completion_kwargs["base_url"] = copilot_base_url
+            completion_kwargs["api_key"] = copilot_token
+            completion_kwargs["extra_headers"] = {
+                **COPILOT_DEFAULT_HEADERS,
+                "Authorization": f"Bearer {copilot_token}",
+            }
+        else:
+            if api_key:
+                completion_kwargs["api_key"] = api_key
+            if api_base:
+                completion_kwargs["api_base"] = api_base
 
         response = litellm.completion(**completion_kwargs)
 

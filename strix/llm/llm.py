@@ -15,6 +15,8 @@ from jinja2 import (
 from litellm import ModelResponse, completion_cost
 from litellm.utils import supports_prompt_caching, supports_vision
 
+from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
+
 from strix.llm.config import LLMConfig
 from strix.llm.memory_compressor import MemoryCompressor
 from strix.llm.request_queue import get_global_queue
@@ -449,10 +451,29 @@ class LLM:
             "timeout": self.config.timeout,
         }
 
-        if _LLM_API_KEY:
-            completion_args["api_key"] = _LLM_API_KEY
-        if _LLM_API_BASE:
-            completion_args["api_base"] = _LLM_API_BASE
+        model_name = self.config.model_name
+
+        if model_name and model_name.lower().startswith("github-copilot/"):
+            # Copilot uses OpenAI-compatible endpoints but requires a separate
+            # OAuth device-flow login and additional VS Code style headers.
+            copilot_model = model_name.split("/", 1)[1]
+            copilot_token, copilot_base_url = await get_copilot_access_token()
+
+            completion_args["model"] = copilot_model
+            completion_args["base_url"] = copilot_base_url
+            completion_args["api_key"] = copilot_token
+
+            # LiteLLM passes this through to the underlying HTTP client.
+            # Copilot validates these headers.
+            completion_args["extra_headers"] = {
+                **COPILOT_DEFAULT_HEADERS,
+                "Authorization": f"Bearer {copilot_token}",
+            }
+        else:
+            if _LLM_API_KEY:
+                completion_args["api_key"] = _LLM_API_KEY
+            if _LLM_API_BASE:
+                completion_args["api_base"] = _LLM_API_BASE
 
         if self._should_include_stop_param():
             completion_args["stop"] = ["</function>"]
