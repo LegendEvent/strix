@@ -2,7 +2,6 @@ import asyncio
 import json
 import logging
 import os
-import sys
 from dataclasses import dataclass
 from pathlib import Path
 from time import time
@@ -121,7 +120,7 @@ async def _ensure_ok(resp: httpx.Response, err: str) -> None:
     raise RuntimeError(f"{err} (status={resp.status_code}) body={resp.text}")
 
 
-async def _start_device_flow(*, domain: str) -> dict[str, Any]:
+async def _start_device_flow(*, domain: str) -> Any:
     urls = _get_urls(domain)
     async with httpx.AsyncClient(timeout=30.0, trust_env=False) as http:
         resp = await http.post(

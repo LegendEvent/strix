@@ -215,9 +215,12 @@ async def warm_up_llm(non_interactive: bool = False) -> None:
             except RuntimeError as e:
                 if non_interactive:
                     # Fail fast in CI/non-interactive mode with a clear message
-                    raise RuntimeError(
-                        "GitHub Copilot model requires interactive login. Rerun without --non-interactive or provide a pre-provisioned token via STRIX_COPILOT_TOKEN."
-                    ) from e
+                    msg = (
+                        "GitHub Copilot model requires interactive login. Rerun without "
+                        "--non-interactive or provide a pre-provisioned token via "
+                        "STRIX_COPILOT_TOKEN."
+                    )
+                    raise RuntimeError(msg) from e
                 raise
 
             completion_kwargs["model"] = copilot_model
