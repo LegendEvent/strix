@@ -245,22 +245,55 @@ async def get_copilot_access_token(
     enterprise_url: str | None = None,
     interactive: bool = True,
 ) -> tuple[str, str]:
-    """Return (access_token, base_url). Refreshes if expired."""
+    """Return (access_token, base_url). Refreshes if expired.
+
+    Environment overrides (useful for CI):
+    - STRIX_COPILOT_ACCESS: provide a ready-to-use access token (returned immediately)
+    - STRIX_COPILOT_TOKEN: provide a refresh-like token which will be exchanged for an access token
+    - STRIX_COPILOT_ENTERPRISE: enterprise domain to use instead of github.com
+    """
 
     token_path = token_path or default_token_store_path()
-    info = await login_via_device_flow_if_needed(
-        token_path=token_path,
-        enterprise_url=enterprise_url,
-        interactive=interactive,
-    )
 
-    enterprise_domain = _normalize_domain(enterprise_url) if enterprise_url else None
+    # Environment overrides (CI-friendly)
+    env_access = os.getenv("STRIX_COPILOT_ACCESS")
+    env_refresh = os.getenv("STRIX_COPILOT_TOKEN")
+    env_enterprise = os.getenv("STRIX_COPILOT_ENTERPRISE") or enterprise_url
+
+    enterprise_domain = _normalize_domain(env_enterprise) if env_enterprise else None
     base_url = copilot_openai_base_url(enterprise_domain=enterprise_domain)
 
+    # If an access token is provided directly via env, use it immediately.
+    if env_access:
+        return env_access, base_url
+
+    # If a refresh token is provided via env, prefer that and avoid device flow.
+    if env_refresh:
+        info = CopilotOAuthInfo(
+            refresh=str(env_refresh),
+            access="",
+            expires=0,
+            enterprise_url=enterprise_domain,
+        )
+    else:
+        # Fall back to loading/storing on disk and device flow when necessary.
+        info = await login_via_device_flow_if_needed(
+            token_path=token_path,
+            enterprise_url=enterprise_url,
+            interactive=interactive,
+        )
+
+    # Compute base_url/domain (recompute if enterprise_url argument used and env not set)
+    effective_enterprise = enterprise_domain or (
+        _normalize_domain(enterprise_url) if enterprise_url else None
+    )
+    base_url = copilot_openai_base_url(enterprise_domain=effective_enterprise)
+
+    # If we already have a valid access token stored, return it.
     if info.access and info.expires and info.expires > _now_ms():
         return info.access, base_url
 
-    domain = enterprise_domain or "github.com"
+    domain = (effective_enterprise) or "github.com"
     urls = _get_urls(domain)
 
     async with httpx.AsyncClient(timeout=30.0, trust_env=False) as http:
@@ -277,7 +310,7 @@ async def get_copilot_access_token(
 
     info.access = str(token_data.get("token") or "")
     info.expires = int(token_data.get("expires_at") or 0) * 1000
-    if enterprise_url:
+    if effective_enterprise:
         info.enterprise_url = domain
 
     _save_oauth_info_to_disk(token_path, info)

@@ -223,12 +223,24 @@ export STRIX_LLM="github-copilot/<model>"
 This triggers an interactive OAuth device-flow the first time you run Strix and stores a refresh token at $XDG_CONFIG_HOME/strix/copilot_auth.json (defaults to ~/.config/strix/copilot_auth.json). After login, Strix will automatically refresh tokens and call the Copilot API on your behalf.
 
 Notes:
-- First-run is interactive (open browser & enter code). For non-interactive CI you must use a different provider or pre-provision credentials.
+- First-run is interactive (open browser & enter code). For non-interactive CI you can pre-provision credentials using environment variables (see below).
 - Tokens are stored locally with best-effort 0600 permissions — review the token store if this is a concern.
+
+Environment variables for non-interactive / CI usage:
+
+- STRIX_COPILOT_ACCESS — provide a ready-to-use Copilot access token (used immediately, no exchange)
+- STRIX_COPILOT_TOKEN — provide a Copilot refresh-like token which Strix will exchange for a short-lived access token
+- STRIX_COPILOT_ENTERPRISE — (optional) provide your enterprise domain (e.g. corp.example.com) to target an enterprise Copilot deployment
+
+Security guidance:
+- These values are sensitive. Store them in your CI secret manager (GitHub Actions Secrets, GitLab CI variables, etc.) and never print them in logs.
+- Rotate and revoke tokens regularly. If a token is compromised, revoke it from your GitHub Copilot or enterprise admin console.
 
 Example (copyable):
 export STRIX_LLM="github-copilot/gpt-copilot-v1"
-# Run Strix once and complete the device flow when prompted
+export STRIX_COPILOT_TOKEN="<refresh-token>"
+# Run Strix non-interactively in CI
+# strix -n -t ./ --scan-mode quick
 
 
 [OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) are the recommended models for best results with Strix. See the LLM providers documentation for supported providers including Vertex AI, Bedrock, Azure, and local models.
