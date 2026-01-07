@@ -17,6 +17,7 @@ from litellm.utils import supports_prompt_caching, supports_vision
 
 from strix.config import Config
 from strix.llm.config import LLMConfig
+from strix.llm.copilot_auth import COPILOT_DEFAULT_HEADERS, get_copilot_access_token
 from strix.llm.memory_compressor import MemoryCompressor
 from strix.llm.request_queue import get_global_queue
 from strix.llm.utils import _truncate_to_first_function, parse_tool_invocations
@@ -460,29 +461,74 @@ class LLM:
         if not self._model_supports_vision():
             messages = self._filter_images_from_messages(messages)
 
+        model_name = self.config.model_name
+
         completion_args: dict[str, Any] = {
-            "model": self.config.model_name,
             "messages": messages,
             "timeout": self.config.timeout,
             "stream_options": {"include_usage": True},
         }
 
-        if _LLM_API_KEY:
-            completion_args["api_key"] = _LLM_API_KEY
-        if _LLM_API_BASE:
-            completion_args["api_base"] = _LLM_API_BASE
+        is_copilot = model_name and model_name.lower().startswith("github-copilot/")
+        max_retries = 1
+        attempt = 0
 
-        completion_args["stop"] = ["</function>"]
+        while attempt <= max_retries:
+            attempt += 1
 
-        if self._should_include_reasoning_effort():
-            completion_args["reasoning_effort"] = self._reasoning_effort
+            if is_copilot:
+                copilot_model = model_name.split("/", 1)[1]
 
-        queue = get_global_queue()
-        self._total_stats.requests += 1
-        self._last_request_stats = RequestStats(requests=1)
+                if attempt == 1:
+                    copilot_token, copilot_base_url = await get_copilot_access_token()
+                else:
+                    copilot_token, copilot_base_url = await get_copilot_access_token(
+                        force_refresh=True
+                    )
 
-        async for chunk in queue.stream_request(completion_args):
-            yield chunk
+                completion_args["model"] = copilot_model
+                completion_args["base_url"] = copilot_base_url
+                completion_args["api_key"] = copilot_token
+                completion_args["extra_headers"] = COPILOT_DEFAULT_HEADERS
+            else:
+                completion_args["model"] = model_name
+                if _LLM_API_KEY:
+                    completion_args["api_key"] = _LLM_API_KEY
+                if _LLM_API_BASE:
+                    completion_args["api_base"] = _LLM_API_BASE
+
+            completion_args["stop"] = ["</function>"]
+
+            if self._should_include_reasoning_effort():
+                completion_args["reasoning_effort"] = self._reasoning_effort
+
+            queue = get_global_queue()
+            self._total_stats.requests += 1
+            self._last_request_stats = RequestStats(requests=1)
+
+            try:
+                async for chunk in queue.stream_request(completion_args):
+                    yield chunk
+                return
+            except Exception as e:
+                error_message = str(e).lower()
+
+                is_auth_error = any(
+                    keyword in error_message
+                    for keyword in ["401", "403", "unauthorized", "forbidden"]
+                )
+
+                if is_copilot and is_auth_error and attempt <= max_retries:
+                    logger.warning(
+                        "Copilot authentication error (attempt %d/%d): %s. "
+                        "Attempting token refresh and retry...",
+                        attempt,
+                        max_retries + 1,
+                        e,
+                    )
+                    continue
+
+                raise
 
     def _update_usage_stats(self, response: Any) -> None:
         try:
