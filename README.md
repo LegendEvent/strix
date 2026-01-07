@@ -161,13 +161,14 @@ strix --target https://your-app.com --instruction "Perform authenticated testing
 
 # Multi-target testing (source code + deployed app)
 strix -t https://github.com/org/app -t https://your-app.com
-
-# Focused testing with custom instructions
-strix --target api.your-app.com --instruction "Focus on business logic flaws and IDOR vulnerabilities"
+strix -t ./my-project --target https://staging.example.com --target https://prod.example.com
 
 # Provide detailed instructions through file (e.g., rules of engagement, scope, exclusions)
 strix --target api.your-app.com --instruction-file ./instruction.md
-```
+
+# Authenticate with GitHub Copilot
+strix auth login
+strix auth logout
 
 ### 🤖 Headless Mode
 
@@ -212,10 +213,42 @@ export LLM_API_KEY="your-api-key"
 
 # Optional
 export LLM_API_BASE="your-api-base-url"  # if using a local model, e.g. Ollama, LMStudio
-export PERPLEXITY_API_KEY="your-api-key"  # for search capabilities
+export PERPLEXITY_API_KEY="your-perplexity-key"  # for search capabilities
 ```
 
-[OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4-5`) are the recommended models for best results with Strix. See the [LLM Providers documentation](https://docs.strix.ai/llm-providers/overview) for all supported providers including Vertex AI, Bedrock, Azure, and local models.
+### GitHub Copilot models
+
+We support Copilot-backed models via STRIX_LLM by using model names of form:
+
+```bash
+export STRIX_LLM="github-copilot/<model>"
+```
+
+**Interactive authentication (recommended):**
+
+```bash
+# Authenticate with GitHub Copilot
+strix auth login
+
+# Logout when done
+strix auth logout
+```
+
+Strix handles OAuth device flow automatically and stores your tokens securely.
+
+**Non-interactive / CI authentication:**
+
+For automated workflows, you can pre-provision tokens via environment variables:
+
+```bash
+export STRIX_COPILOT_ACCESS="<access-token>"  # ready-to-use token
+# OR
+export STRIX_COPILOT_TOKEN="<refresh-token>"  # Strix exchanges for access token
+export STRIX_COPILOT_ENTERPRISE="corp.example.com"  # optional: enterprise domain
+```
+
+
+[OpenAI's GPT-5](https://openai.com/api/) (`openai/gpt-5`) and [Anthropic's Claude Sonnet 4.5](https://claude.com/platform/api) (`anthropic/claude-sonnet-4.5`) are recommended models for best results with Strix. See [LLM Providers documentation](https://docs.strix.ai/llm-providers/overview) for all supported providers including Vertex AI, Bedrock, Azure, and local models.
 
 ## 📚 Documentation
 

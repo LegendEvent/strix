@@ -30,10 +30,9 @@ from strix.interface.utils import (
     image_exists,
     infer_target_type,
     process_pull_line,
-    rewrite_localhost_targets,
     validate_llm_response,
 )
-from strix.runtime.docker_runtime import HOST_GATEWAY_HOSTNAME, STRIX_IMAGE
+from strix.runtime.docker_runtime import STRIX_IMAGE
 from strix.telemetry.tracer import get_global_tracer
 
 
@@ -154,6 +153,59 @@ def validate_environment() -> None:  # noqa: PLR0912, PLR0915
         sys.exit(1)
 
 
+async def handle_auth_login() -> None:
+    from rich.console import Console
+
+    from strix.llm.copilot_auth import (
+        default_token_store_path,
+        login_via_device_flow_if_needed,
+    )
+
+    console = Console()
+    token_path = default_token_store_path()
+
+    console.print("\n[bold cyan]Starting GitHub Copilot authentication...[/]")
+    console.print()
+
+    try:
+        await login_via_device_flow_if_needed(
+            token_path=token_path,
+            interactive=True,
+            enterprise_url=None,
+        )
+        success_text = "✅ Successfully authenticated with GitHub Copilot"
+        console.print(f"\n[bold green]{success_text}[/]")
+    except RuntimeError as auth_error:
+        error_text = f"❌ Authentication failed: {auth_error}"
+        console.print(f"\n[bold red]{error_text}[/]")
+        sys.exit(1)
+
+
+async def handle_auth_logout() -> None:
+    from rich.console import Console
+
+    from strix.llm.copilot_auth import default_token_store_path
+
+    console = Console()
+    token_path = default_token_store_path()
+
+    console.print("\n[bold cyan]Logging out from GitHub Copilot...[/]")
+    console.print()
+
+    try:
+        if token_path.exists():
+            token_path.unlink()
+            success_text = "✅ Successfully logged out from GitHub Copilot"
+            console.print(f"\n[bold green]{success_text}[/]")
+        else:
+            info_text = "ℹ️  No active GitHub Copilot session found"
+            console.print(f"\n[bold yellow]{info_text}[/]")
+    except OSError as e:
+        error_text = f"❌ Failed to logout: {e}"
+        console.print(f"\n[bold red]{error_text}[/]")
+        sys.exit(1)
+
+
 def check_docker_installed() -> None:
     if shutil.which("docker") is None:
         console = Console()
@@ -177,7 +229,7 @@ def check_docker_installed() -> None:
         sys.exit(1)
 
 
-async def warm_up_llm() -> None:
+async def warm_up_llm(non_interactive: bool = False) -> None:
     console = Console()
 
     try:
@@ -206,6 +258,22 @@ async def warm_up_llm() -> None:
             completion_kwargs["api_key"] = api_key
         if api_base:
             completion_kwargs["api_base"] = api_base
+
+        if model_name.lower().startswith("github-copilot/"):
+            from strix.llm.copilot_auth import get_copilot_access_token
+
+            try:
+                await get_copilot_access_token(interactive=not non_interactive)
+            except RuntimeError as e:
+                if non_interactive:
+                    msg = (
+                        "GitHub Copilot model requires interactive login. Rerun without "
+                        "--non-interactive or provide a pre-provisioned token via "
+                        "STRIX_COPILOT_TOKEN."
+                    )
+                    raise RuntimeError(msg) from e
+                raise
+            return
 
         response = litellm.completion(**completion_kwargs)
 
@@ -275,6 +343,10 @@ Examples:
   # Custom instructions (from file)
   strix --target example.com --instruction-file ./instructions.txt
   strix --target https://app.com --instruction-file /path/to/detailed_instructions.md
+
+  # Authenticate with GitHub Copilot
+  strix auth login
+  strix auth logout
         """,
     )
 
@@ -285,11 +357,34 @@ Examples:
         version=f"strix {get_version()}",
     )
 
+    subparsers = parser.add_subparsers(dest="command", help="Available commands")
+
+    auth_parser = subparsers.add_parser(
+        "auth", help="Authentication commands", description="Authentication commands"
+    )
+    auth_subparsers = auth_parser.add_subparsers(
+        dest="auth_command", help="Authentication subcommands"
+    )
+
+    login_parser = auth_subparsers.add_parser(
+        "login",
+        help="Login to GitHub Copilot",
+        description="Login to GitHub Copilot using device authorization flow",
+    )
+    login_parser.set_defaults(func=handle_auth_login)
+
+    logout_parser = auth_subparsers.add_parser(
+        "logout",
+        help="Logout from GitHub Copilot",
+        description="Logout from GitHub Copilot by deleting the stored token",
+    )
+    logout_parser.set_defaults(func=handle_auth_logout)
+
     parser.add_argument(
         "-t",
         "--target",
         type=str,
-        required=True,
+        required=False,
         action="append",
         help="Target to test (URL, repository, local directory path, domain name, or IP address). "
         "Can be specified multiple times for multi-target scans.",
@@ -346,6 +441,15 @@ Examples:
 
     args = parser.parse_args()
 
+    if hasattr(args, "func"):
+        asyncio.run(args.func())
+        sys.exit(0)
+
+    if args.command is None and not args.target:
+        parser.error(
+            "the following arguments are required: -t/--target or a subcommand (e.g., 'strix auth login')"
+        )
+
     if args.instruction and args.instruction_file:
         parser.error(
             "Cannot specify both --instruction and --instruction-file. Use one or the other."
@@ -378,7 +482,6 @@ Examples:
             parser.error(f"Invalid target '{target}'")
 
     assign_workspace_subdirs(args.targets_info)
-    rewrite_localhost_targets(args.targets_info, HOST_GATEWAY_HOSTNAME)
 
     return args
 
