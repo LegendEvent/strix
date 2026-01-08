@@ -213,7 +213,8 @@ class TerminalRenderer(BaseToolRenderer):
         if isinstance(result, str):
             if result.strip():
                 text.append("\n")
-                text.append_text(cls._format_output(result))
+                text.append("  error: ", style="bold #ef4444")
+                text.append(cls._truncate_line(result), style="#ef4444")
             return
 
         raw_output = result.get("content", "")
