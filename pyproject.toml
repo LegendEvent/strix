@@ -55,6 +55,7 @@ textual = "^4.0.0"
 xmltodict = "^0.13.0"
 requests = "^2.32.0"
 httpx = "^0.27.0"
+cvss = "^3.2"
 
 # Optional LLM provider dependencies
 google-cloud-aiplatform = { version = ">=1.38", optional = true }
@@ -145,6 +146,7 @@ module = [
     "pyte.*",
     "libtmux.*",
     "pytest.*",
+    "cvss.*",
 ]
 ignore_missing_imports = true
 
