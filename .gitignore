@@ -97,3 +97,12 @@ Thumbs.db
 schema.graphql
 
 .opencode/
+
+# Development artifacts
+AGENTS.md
+authlib/
+authlib_repo/
+cpython_source/
+install_lsps.sh
+pygithub_repo/
+test_invalid_provider.py
